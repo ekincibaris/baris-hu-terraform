@@ -26,3 +26,9 @@ import {
   to = aws_s3_bucket.website
   id = "baris.hu"
 }
+
+provider "aws" {
+  alias               = "us_east_1"
+  region              = "us-east-1"
+  allowed_account_ids = ["997241705349"]
+}
