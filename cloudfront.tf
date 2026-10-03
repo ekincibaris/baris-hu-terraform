@@ -18,7 +18,6 @@ resource "aws_cloudfront_distribution" "website" {
   }
 
   wait_for_deployment = true
-  web_acl_id          = "arn:aws:wafv2:us-east-1:997241705349:global/webacl/CreatedByCloudFront-fa76f528/96c51c54-0c76-4067-aa33-603e87935d8a"
   custom_error_response {
     error_caching_min_ttl = 10
     error_code            = 403
@@ -55,11 +54,12 @@ resource "aws_cloudfront_distribution" "website" {
   origin {
     connection_attempts         = 3
     connection_timeout          = 10
-    domain_name                 = "baris.hu.s3.eu-central-1.amazonaws.com"
-    origin_access_control_id    = "EUJESFBMVH2UI"
     origin_id                   = "baris.hu.s3.eu-central-1.amazonaws.com-mmj3fo0qef5"
     origin_path                 = null
     response_completion_timeout = 0
+    domain_name                 = aws_s3_bucket.website.bucket_regional_domain_name
+    origin_access_control_id    = aws_cloudfront_origin_access_control.website.id
+
   }
   restrictions {
     geo_restriction {
@@ -68,14 +68,15 @@ resource "aws_cloudfront_distribution" "website" {
     }
   }
   viewer_certificate {
-    acm_certificate_arn            = "arn:aws:acm:us-east-1:997241705349:certificate/c19a7ab5-2a4c-4b1b-8b67-3b7affe0d3f4"
     cloudfront_default_certificate = false
     iam_certificate_id             = null
     minimum_protocol_version       = "TLSv1.2_2021"
     ssl_support_method             = "sni-only"
+    acm_certificate_arn            = aws_acm_certificate.website.arn
   }
   lifecycle {
     prevent_destroy = true
   }
+  web_acl_id = aws_wafv2_web_acl.website.arn
 }
 
