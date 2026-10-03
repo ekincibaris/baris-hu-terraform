@@ -9,8 +9,3 @@ resource "aws_cloudfront_origin_access_control" "website" {
     prevent_destroy = true
   }
 }
-
-import {
-  to = aws_cloudfront_origin_access_control.website
-  id = "EUJESFBMVH2UI"
-}

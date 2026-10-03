@@ -1,31 +1,5 @@
-import {
-  to = aws_s3_bucket_policy.website
-  id = "baris.hu"
-}
-
-import {
-  to = aws_s3_bucket_public_access_block.website
-  id = "baris.hu"
-}
-
-import {
-  to = aws_s3_bucket_server_side_encryption_configuration.website
-  id = "baris.hu"
-}
-
-import {
-  to = aws_s3_bucket_ownership_controls.website
-  id = "baris.hu"
-}
-
-import {
-  to       = aws_wafv2_web_acl.website
-  id       = "96c51c54-0c76-4067-aa33-603e87935d8a/CreatedByCloudFront-fa76f528/CLOUDFRONT"
-  provider = aws.us_east_1
-}
-
 resource "aws_s3_bucket_policy" "website" {
-  bucket = "baris.hu"
+  bucket = aws_s3_bucket.website.id
 
   policy = jsonencode({
     Version = "2008-10-17"
@@ -41,11 +15,11 @@ resource "aws_s3_bucket_policy" "website" {
         }
 
         Action   = "s3:GetObject"
-        Resource = "arn:aws:s3:::baris.hu/*"
+        Resource = "${aws_s3_bucket.website.arn}/*"
 
         Condition = {
           StringEquals = {
-            "AWS:SourceArn" = "arn:aws:cloudfront::997241705349:distribution/EVN0BCIX8WGCI"
+            "AWS:SourceArn" = aws_cloudfront_distribution.website.arn
           }
         }
       }
@@ -58,7 +32,7 @@ resource "aws_s3_bucket_policy" "website" {
 }
 
 resource "aws_s3_bucket_public_access_block" "website" {
-  bucket = "baris.hu"
+  bucket = aws_s3_bucket.website.id
 
   block_public_acls       = true
   ignore_public_acls      = true
@@ -71,7 +45,7 @@ resource "aws_s3_bucket_public_access_block" "website" {
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "website" {
-  bucket = "baris.hu"
+  bucket = aws_s3_bucket.website.id
 
   rule {
     apply_server_side_encryption_by_default {
@@ -88,7 +62,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "website" {
 }
 
 resource "aws_s3_bucket_ownership_controls" "website" {
-  bucket = "baris.hu"
+  bucket = aws_s3_bucket.website.id
 
   rule {
     object_ownership = "BucketOwnerEnforced"

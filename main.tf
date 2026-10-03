@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.5, < 2.0"
+  required_version = ">= 1.10, < 2.0"
 
   required_providers {
     aws = {
@@ -10,25 +10,22 @@ terraform {
 }
 
 provider "aws" {
-  region              = "eu-central-1"
-  allowed_account_ids = ["997241705349"]
+  region              = var.aws_region
+  allowed_account_ids = [var.aws_account_id]
 }
 
 resource "aws_s3_bucket" "website" {
-  bucket = "baris.hu"
+  bucket = var.domain_name
 
   lifecycle {
     prevent_destroy = true
   }
 }
 
-import {
-  to = aws_s3_bucket.website
-  id = "baris.hu"
-}
+
 
 provider "aws" {
   alias               = "us_east_1"
   region              = "us-east-1"
-  allowed_account_ids = ["997241705349"]
+  allowed_account_ids = [var.aws_account_id]
 }

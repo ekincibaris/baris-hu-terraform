@@ -9,8 +9,3 @@ resource "aws_s3_bucket_versioning" "website" {
     prevent_destroy = true
   }
 }
-
-import {
-  to = aws_s3_bucket_versioning.website
-  id = "baris.hu"
-}
