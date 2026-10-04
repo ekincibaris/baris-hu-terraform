@@ -1,110 +1,94 @@
-# baris.hu infrastructure
+# baris.hu | AWS Infrastructure with Terraform
 
-Terraform manages an existing AWS static-site environment adopted through imports.
-The site uses a private S3 bucket in eu-central-1. CloudFront signs origin requests
-with OAC. ACM provides TLS; its certificate and the CloudFront WAF are in us-east-1.
-Route 53 provides apex and www aliases for IPv4 and IPv6.
+An AWS-hosted personal portfolio, with its existing infrastructure brought under Terraform management. This project demonstrates infrastructure adoption, private origin access, DNS and TLS configuration, and remote state management.
+
+**[Visit baris.hu](https://baris.hu/) · [LinkedIn](https://www.linkedin.com/in/muhammedbarisekinci)**
+
+## Project overview
+
+The goal was to make an existing website infrastructure maintainable through version-controlled configuration, while preserving its intended behaviour. Instead of rebuilding the environment, I used Terraform imports to adopt existing AWS resources and replaced fixed resource IDs with references between resources.
+
+The repository includes a dedicated S3 backend configuration with encryption, versioning and native state locking. It is tailored to baris.hu rather than packaged as a reusable module.
+
+## Architecture
 
 ```mermaid
 flowchart TD
-  Visitor --> DNS[Route 53]
-  DNS --> Edge[CloudFront]
-  TLS[ACM certificate] --> Edge
-  WAF[AWS WAF] --> Edge
-  Edge -->|Signed OAC requests| Bucket[Private S3 bucket]
+    Visitor["Visitor"] -->|"HTTPS"| Edge["CloudFront"]
+    Visitor -.->|"DNS lookup"| DNS["Route 53"]
+    DNS -.->|"Alias resolution"| Edge
+    TLS["ACM certificate"] --- Edge
+    WAF["AWS WAF managed rules"] --- Edge
+    Edge -->|"Signed OAC origin requests"| Site["Private S3 website bucket"]
+    Terraform["Terraform"] -->|"State and lock objects"| State["Separate S3 state bucket"]
 ```
 
-## Requirements and authentication
+Route 53 resolves the domain; it does not proxy HTTP traffic. CloudFront serves cached content and retrieves origin content from S3 using Origin Access Control (OAC).
 
-Terraform >= 1.10 and < 2.0 is required for S3 native state locking. The provider
-constraint permits AWS 6.x; `.terraform.lock.hcl` selects the reviewed version
-6.67.0. Commit the lock file. Do not run `init -upgrade` during this refactor.
+| Component | Purpose in this project |
+| --- | --- |
+| Amazon S3 | Private static-content origin in eu-central-1, with public access blocked and versioning enabled |
+| Amazon CloudFront | HTTPS delivery, edge caching, compression and IPv4/IPv6 support |
+| Origin Access Control | Signed origin requests; the bucket policy limits access to the configured CloudFront distribution |
+| Amazon Route 53 | Public DNS, apex and www aliases, and certificate-validation records |
+| AWS Certificate Manager | TLS certificate, managed through the us-east-1 provider configuration |
+| AWS WAF | IP reputation, common rule set and known bad inputs managed rules |
+| Terraform S3 backend | Separate encrypted, versioned state bucket with native lock-file support |
+| Git / GitHub | Configuration history and reviewable changes |
 
-AWS credentials must be available in the shell running Terraform. In the current
-WSL arrangement these exports reuse the Windows credential files and must be run
-in each new shell unless you intentionally configure another authentication method:
+## My contribution
 
-```bash
-export AWS_SHARED_CREDENTIALS_FILE=/mnt/c/Users/baris/.aws/credentials
-export AWS_CONFIG_FILE=/mnt/c/Users/baris/.aws/config
-aws sts get-caller-identity
-```
+- Adopted existing infrastructure using declarative Terraform import blocks.
+- Organised configuration into delivery, DNS, certificates, security and state-storage files.
+- Replaced fixed resource references in DNS and access policies with Terraform resource references.
+- Added dedicated state-storage configuration, including public-access blocking, encryption, versioning and a policy denying insecure transport.
+- Configured the S3 backend for native state locking and account restrictions.
+- Added deployment outputs and documented the maintenance and migration workflow.
 
-Check account 997241705349. Credentials, state, saved plans and private variable
-files do not belong in Git. GitHub stores configuration and history, not state.
-Use `/home/baris/projects/baris-hu-terraform` as the active checkout.
+## Engineering decisions and trade-offs
 
-## Files and dependencies
+**Adopt the live environment rather than recreate it.** Imports retain existing resource identities. The review objective is to bring resources under management without unintended replacement or deletion.
 
-- `main.tf`: Terraform requirements, providers and website bucket.
-- `cloudfront.tf`, `oac.tf`, `acm.tf`: delivery, signed origin access and TLS.
-- `route53.tf`, `dns.tf`: hosted zone and records, including certificate validation.
-- `security.tf`, `versioning.tf`: S3 controls and managed WAF rules.
-- `variables.tf`, `outputs.tf`: a small set of inputs and useful deployment outputs.
-- `imports.tf`: the existing environment's adoption history. These fixed import
-  IDs are intentional. Imported addresses already in state are not imported again.
-- `setup/`: inactive templates for creating state storage and enabling its backend.
+**Keep the origin private.** Visitors use CloudFront; the S3 bucket is not configured as a public website endpoint. OAC and the bucket policy control origin access.
 
-Resource references connect the bucket policy and DNS aliases to CloudFront.
-The existing resource names are preserved, so file reorganization needs no state
-moves. ACM validation values come from the certificate; the apex and wildcard
-share one validation resource. Inputs have defaults for this existing environment;
-this is not a generic multi-site module. Changing domain/account/region requires
-an infrastructure migration and review of historical imports and retained names.
+**Use a separate bucket for Terraform state.** State is separated from website content. Versioning provides recovery points; locking coordinates Terraform operations. Encryption does not replace IAM access controls.
 
-## Normal workflow
+**Preserve the single-page fallback.** CloudFront maps origin 403 and 404 responses to index.html with HTTP 200, intentionally returning the homepage for unknown paths. This also means a missing asset can return HTML, so asset checks must inspect content as well as status codes.
 
-```bash
-terraform fmt -check
-terraform validate
-terraform plan -out=review.tfplan
-terraform show review.tfplan
-# Apply only the reviewed, expected actions:
-terraform apply review.tfplan
-```
+**Retain explicit destruction guards.** Selected resources use prevent_destroy to reduce accidental deletion through Terraform. This does not prevent deletion in the AWS console or protect a resource after its declaration is removed.
 
-A `.tfplan` file is a saved execution plan, not Terraform source. It contains
-sensitive infrastructure details and must stay out of Git. Generate a fresh plan
-if state changes; a previously applied plan cannot be reused.
+## Validation and evidence
 
-## State storage
+The configuration and import history are available in this repository for technical review. The committed [validation record](VALIDATION.md) documents formatting and provider-initialisation checks, as well as the environment restriction that prevented full provider validation during that review. It does not establish a successful live AWS plan.
 
-Before migration state is local. Follow `REFINEMENT.md` to create a separate
-private, encrypted, versioned bucket, then migrate state with S3 native locking.
-The bucket is managed in the same root configuration and state as the website.
-This avoids introducing a second local bootstrap state to maintain. Once migrated,
-that state also contains the bucket's own resource entries. `prevent_destroy`
-protects the bucket while its resource declaration exists; it is not an AWS-level
-protection against console deletion or removal of the declaration.
+A no-change plan is the acceptance check for adoption and state migration. Current live state must be confirmed from an authenticated checkout; this README does not present a static command example as a live result.
 
-The state bucket has no version-expiration rule. Its object versions provide
-recovery points. Authorized users can still read state; SSE-S3 encryption does not
-replace IAM access controls. The TLS-only bucket policy denies insecure transport
-but does not grant access. Backend access needs bucket ListBucket, state-object
-GetObject/PutObject, and lock-object GetObject/PutObject/DeleteObject. Provisioning
-also needs the appropriate S3 configuration permissions. Credentials stay outside
-backend configuration.
+Useful files to inspect:
 
-After migration, a new checkout runs `terraform init` and uses the same backend.
-Do not upload an old local state, use `state push`, or operate the old Windows copy
-against an independent state. For recovery, preserve the current state and inspect
-S3 versions before restoring a known-good version with its related configuration.
-Never delete a lock until you have established that its operation is no longer running.
+- [imports.tf](imports.tf): adoption of existing resources.
+- [cloudfront.tf](cloudfront.tf) and [oac.tf](oac.tf): content delivery and origin access.
+- [security.tf](security.tf): bucket access controls and WAF rules.
+- [backend.tf](backend.tf) and [state-storage.tf](state-storage.tf): remote state and recovery controls.
+- [dns.tf](dns.tf) and [route53.tf](route53.tf): DNS and certificate-validation records.
 
-## Decisions retained for a separate change
+## Scope and next improvements
 
-The current configuration includes destruction guards, AWS-created NS/SOA records,
-PriceClass_All, and 403/404 responses mapped to index.html with status 200. It also
-has no custom response headers or noncurrent-version expiration rule.
+This is a focused infrastructure portfolio project. Website content deployment is separate from the Terraform resource configuration. The repository does not currently implement an automated deployment pipeline, end-to-end monitoring and alerting, or automated recovery tests.
 
-- Removing NS/SOA management requires a state-only handoff (`removed` with
-  `destroy = false`), never a plan deleting the DNS records.
-- Keep the current error handling until application routing is confirmed. A normal
-  missing page and a client-side route may need different treatment.
-- Choose HSTS scope and CSP after checking the website's subdomains and assets.
-- Decide rollback retention before enabling noncurrent-version expiration, which
-  permanently deletes old content.
-- Review destruction guards when planning replacements, especially certificates.
-- Confirm the CloudFront billing plan before making WAF or price-class changes.
+Potential next steps include CI checks for Terraform changes, documented rollback exercises, and a review of response headers, content-version retention and delivery costs. These are future improvements, not completed features.
 
-These are follow-up design decisions, not silently bundled into the refactor.
+## Operational documentation
+
+- [Operations guide](OPERATIONS.md): authentication, repository structure, Terraform workflow and state-handling precautions.
+- [Migration and refinement guide](REFINEMENT.md): staged adoption and backend migration instructions.
+- [Validation record](VALIDATION.md): recorded checks and their limitations.
+
+Terraform requirements: **>= 1.10, < 2.0**. AWS provider constraint: **6.x**, with the selected version recorded in .terraform.lock.hcl.
+
+This repository targets an existing environment. Review its account restrictions, backend settings, import IDs and retained resource names before attempting to use it elsewhere. AWS credentials, state files and saved plans must remain outside Git.
+
+## About me
+
+I am Muhammed Baris Ekinci, an IT Service Desk Analyst at Tata Consultancy Services and an AWS Certified Solutions Architect - Associate, with earlier hands-on AWS and Linux experience. I am seeking CloudOps / SysOps or junior cloud engineering opportunities.
+
+[Portfolio](https://baris.hu/) · [LinkedIn](https://www.linkedin.com/in/muhammedbarisekinci)
