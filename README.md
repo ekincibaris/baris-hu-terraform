@@ -6,7 +6,7 @@ A personal website hosted on AWS, with its infrastructure defined in Terraform. 
 
 ## At a glance
 
-| | |
+| Project area | Details |
 | --- | --- |
 | **Purpose** | Manage the infrastructure behind my personal portfolio using Infrastructure as Code |
 | **Technologies** | Terraform, Amazon S3, CloudFront, Route 53, ACM, AWS WAF and Git |
