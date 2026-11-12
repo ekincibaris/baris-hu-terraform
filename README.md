@@ -24,7 +24,7 @@ The website already existed in AWS. I used Terraform import blocks to bring its 
 - Configured the S3 backend for native state locking and restricted provider operations to the intended AWS account.
 - Added destruction guards for key resources and outputs for deployment details.
 
-These implementations can be reviewed directly in the configuration files below. The repository alone does not confirm the current live Terraform state or completion of the backend migration.
+These implementations can be reviewed directly in the configuration files below.
 
 ## How the website works
 
